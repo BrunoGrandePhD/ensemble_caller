@@ -23,18 +23,23 @@ Known Issues
 """
 
 import argparse
-import vcf
+import vcf as pyvcf
 
 __version__ = 0.1
 __desc__ = "Perform ensemble SNV calling based on multiple algorithms"
 
 
 def main():
-    pass
+    """Perform ensemble SNV calling."""
+    # Parse command-line arguments
+    args = parse_args()
+    # Sort checking
+    if not args.skip_sort_check:
+        pass
 
 
 def parse_args(args=None):
-    """Parse command-line arguments.
+    """Parse command-line arguments and prepare them.
 
     Arguments:
         args (list): List of command-line arguments (for testing)
@@ -42,10 +47,31 @@ def parse_args(args=None):
     Returns:
         Dictionary (dict) of argument-value pairs
     """
+    # Parse command-line arguments
     parser = argparse.ArgumentParser(description=__desc__)
-    parser.add_argument("vcf_files", n="+", help="VCF files from multiple algorithms")
+    parser.add_argument("vcf_files", nargs="+", type=argparse.FileType("r"), help="VCF files from multiple algorithms")
+    parser.add_argument("--skip_sort_check", "-s", action="store_true", help="Skip sort check")
     args_parsed = parser.parse_args(args)
+    # Convert VCF files into pyvcf objects
+    args_parsed.vcf_files = [pyvcf.Reader(f) for f in args_parsed.vcf_files]
     return args_parsed
+
+
+def reset_vcf_files(vcf_files):
+    """Reset the VCF objects to the beginning.
+
+    Arguments:
+        vcf_files (list): List of `vcf.Reader` objects
+
+    Returns:
+        None
+    """
+    for vcf in vcf_files:
+        vcf.reader.seek(0)
+
+
+def check_sort(vcf_files):
+    pass
 
 
 if __name__ == '__main__':

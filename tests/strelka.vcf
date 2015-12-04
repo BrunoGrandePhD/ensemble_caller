@@ -3,7 +3,7 @@
 ##source=strelka
 ##source_version=2.0.17.strelka1
 ##startTime=Wed Dec  2 19:39:16 2015
-##reference=file:///projects/lohr_prj/reference/Homo_sapiens_assembly19_EBV.fasta
+##reference=file:///reference/Homo_sapiens_assembly19_EBV.fasta
 ##contig=<ID=1,length=249250621>
 ##contig=<ID=2,length=243199373>
 ##contig=<ID=3,length=198022430>
@@ -110,7 +110,6 @@
 ##FILTER=<ID=BCNoise,Description="Fraction of basecalls filtered at this site in either sample is at or above 0.4">
 ##FILTER=<ID=SpanDel,Description="Fraction of reads crossing site with spanning deletions in either sample exceeeds 0.75">
 ##FILTER=<ID=QSS_ref,Description="Normal sample is not homozygous ref or ssnv Q-score < 15, ie calls with NT!=ref or QSS_NT < 15">
-##cmdline=/projects/lohr_prj/software/strelka/1.0.14/morinlab/package_strelka_1_0_14/48d2f44d0a00/libexec/consolidateResults.pl --config=/projects/lohr_prj/results/strelka_pipeline/2015-12-02_06-24-51/LS3271_strelka_pipeline/outputs/2-strelka/strelka_output/config/run.config.ini
 #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NORMAL	TUMOR
 1	2317235	.	C	A	.	PASS	NT=ref;QSS=16;QSS_NT=16;SGT=CC->AC;SOMATIC;TQSS=1;TQSS_NT=1	DP:FDP:SDP:SUBDP:AU:CU:GU:TU	144:0:0:0:0,0:144,144:0,0:0,0	158:0:0:0:6,6:152,152:0,0:0,0
 1	16913578	.	C	G	.	PASS	NT=ref;QSS=60;QSS_NT=60;SGT=CC->CG;SOMATIC;TQSS=1;TQSS_NT=1	DP:FDP:SDP:SUBDP:AU:CU:GU:TU	237:0:0:0:0,0:237,397:0,0:0,0	216:1:0:0:0,0:203,341:12,18:0,0

@@ -1,10 +1,8 @@
 ##fileformat=VCFv4.1
 ##fileDate=20151202 
 ##source=mutationSeq_4.3.6
-##reference=/projects/lohr_prj//reference/Homo_sapiens_assembly19_EBV.fasta
-##tumour=1-clip_overlap/LS3271.tumour.bam
-##normal=1-clip_overlap/LS3271.normal.bam
-##model=/projects/lohr_prj//software/mutationseq/museq/model_v4.1.2_anaconda_sk_0.13.1.npz
+##reference=/reference/Homo_sapiens_assembly19_EBV.fasta
+##model=/software/mutationseq/museq/model_v4.1.2_anaconda_sk_0.13.1.npz
 ##threshold=0.5
 ##tumourcoverage=56.7793903
 ##normalcoverage=51.2925940

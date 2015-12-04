@@ -26,6 +26,7 @@ import argparse
 import vcf
 
 __version__ = 0.1
+__desc__ = "Perform ensemble SNV calling based on multiple algorithms"
 
 
 def main():
@@ -41,9 +42,8 @@ def parse_args(args=None):
     Returns:
         Dictionary (dict) of argument-value pairs
     """
-    desc = "Perform ensemble SNV calling based on multiple algorithms"
-    parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument("vcf_files", n="+", "VCF files from multiple algorithms")
+    parser = argparse.ArgumentParser(description=__desc__)
+    parser.add_argument("vcf_files", n="+", help="VCF files from multiple algorithms")
     args_parsed = parser.parse_args(args)
     return args_parsed
 

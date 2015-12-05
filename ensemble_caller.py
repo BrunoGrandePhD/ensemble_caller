@@ -62,15 +62,25 @@ def reset_vcf_files(vcf_files):
 
     Arguments:
         vcf_files (list): List of `vcf.Reader` objects
-
-    Returns:
-        None
     """
     for vcf in vcf_files:
-        vcf.reader.seek(0)
+        vcf._reader.seek(0)  # Reset the underlying file object to zero
+        vcf.reader = (line.strip() for line in vcf._reader if line.strip())  # Recreate generator
+        vcf._parse_metainfo()  # Reparse the meta-information to skip ahead to the VCF records
 
 
 def check_sort(vcf_files):
+    """Reset the VCF objects to the beginning.
+
+    Arguments:
+        vcf_files (list): List of `vcf.Reader` objects
+
+    Returns:
+        A boolean indicating whether the following is true:
+            - The chromosome order is the same in all VCF files
+            - The positions within each chromosome are numerically
+              sorted
+    """
     pass
 
 

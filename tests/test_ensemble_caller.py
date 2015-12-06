@@ -76,19 +76,21 @@ def test_are_sorted(setup_vcf_files, setup_unsorted_vcf_files):
     are_sorted = ensemble_caller.are_sorted([vcf_file1, vcf_file2])
     assert are_sorted is True
     # Compare sorted and unsorted files
-    vcf_file_unsorted, _ = setup_unsorted_vcf_files
-    is_sorted = ensemble_caller.are_sorted([vcf_file1, vcf_file_unsorted])
-    assert is_sorted is False
+    vcf_file_unsorted1, vcf_file_unsorted2 = setup_unsorted_vcf_files
+    with pytest.raises(ensemble_caller.NotSortedException):
+        ensemble_caller.are_sorted([vcf_file1, vcf_file_unsorted1])
+    with pytest.raises(ensemble_caller.NotSortedException):
+        ensemble_caller.are_sorted([vcf_file1, vcf_file_unsorted2])
 
 
 def test_parse_order(setup_vcf_files, setup_unsorted_vcf_files):
     """Test parse_order function"""
     # Test 1: Obtain chromosome order from sorted file
     vcf_file, _ = setup_vcf_files
-    test_1 = ["1", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
-              "2", "20", "21", "22", "3", "4", "5", "6", "7", "8", "9", "X"]
+    expect_1 = ["1", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
+                "2", "20", "21", "22", "3", "4", "5", "6", "7", "8", "9", "X"]
     chrom_order = ensemble_caller.parse_order(vcf_file)
-    assert chrom_order == test_1
+    assert chrom_order == expect_1
     # Test 2: Obtain chromosome order from unsorted file (2 chrom blocks)
     # Expectation: NotSortedException
     vcf_file_unsorted1, vcf_file_unsorted2 = setup_unsorted_vcf_files
@@ -98,3 +100,20 @@ def test_parse_order(setup_vcf_files, setup_unsorted_vcf_files):
     # Expectation: NotSortedException
     with pytest.raises(ensemble_caller.NotSortedException):
         ensemble_caller.parse_order(vcf_file_unsorted2)
+
+
+def test_compare_orders():
+    """Test compare_orders function"""
+    # Test 1: Compare identical lists
+    test_1 = [[1, 2, 3], [1, 2, 3]]
+    assert ensemble_caller.compare_orders(test_1) is True
+    # Test 2: Compare ordered lists with a missing value (middle)
+    test_2 = [[1, 2, 3], [1, 3]]
+    assert ensemble_caller.compare_orders(test_2) is True
+    # Test 3: Compare ordered lists with a missing value (end)
+    test_3 = [[1, 2, 3], [1, 2]]
+    assert ensemble_caller.compare_orders(test_3) is True
+    # Test 4: Compare unordered lists
+    test_4 = [[1, 2, 3], [1, 3, 2]]
+    with pytest.raises(ensemble_caller.NotSortedException):
+        ensemble_caller.compare_orders(test_4)

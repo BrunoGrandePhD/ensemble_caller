@@ -24,6 +24,7 @@ Known Issues
 
 import argparse
 from collections import OrderedDict
+from collections import deque
 import vcf as pyvcf
 
 __version__ = 0.1
@@ -70,6 +71,10 @@ def reset_vcf_files(vcf_files):
         vcf._parse_metainfo()  # Reparse the meta-information to skip ahead to the VCF records
 
 
+class NotSortedException(Exception):
+    """Input VCF file isn't sorted"""
+
+
 def are_sorted(vcf_files):
     """Check if the VCF files are sorted.
 
@@ -78,13 +83,14 @@ def are_sorted(vcf_files):
 
     Returns:
         A boolean indicating whether the following is true:
-            - The chromosome order is the same in all VCF files
-            - The positions within each chromosome are numerically
-              sorted
+        - The chromosome order is the same in all VCF files
+        - The positions within each chromosome are numerically
+          sorted
     """
     chrom_lists = []
     for vcf in vcf_files:
         chrom_lists.append(parse_order(vcf))
+    return compare_orders(chrom_lists)
 
 
 def parse_order(vcf_file):
@@ -121,8 +127,33 @@ def parse_order(vcf_file):
     return chroms_seen.keys()
 
 
-class NotSortedException(Exception):
-    """Input VCF file isn't sorted"""
+def compare_orders(lists):
+    """Compare the order of different lists while allowing for
+    missing values. Raises a NotSortedException if the elements
+    aren't in the same order across the lists.
+
+    Arguments:
+        lists (list): List of lists consisting of objects that
+            can be ordered
+
+    Returns:
+        A boolean indicated whether the lists follow the same order
+            while allowing for missing values
+    """
+    seen = set()
+    deques = [deque(l) for l in lists]
+    while sum(len(d) for d in deques) > 0:
+        heads = [d[0] for d in deques if len(d) > 0]
+        head = sorted(heads)[0]
+        if head in seen:
+            raise NotSortedException("Chromosomes aren't in the same order"
+                                     "across VCF files.")
+        else:
+            seen.add(head)
+            for d in deques:
+                if len(d) > 0 and d[0] == head:
+                    d.popleft()
+    return True
 
 
 if __name__ == '__main__':

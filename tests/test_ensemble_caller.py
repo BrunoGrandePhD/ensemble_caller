@@ -13,8 +13,22 @@ import vcf as pyvcf
 
 VCF1 = os.path.join(os.path.dirname(__file__), 'strelka.vcf')
 VCF2 = os.path.join(os.path.dirname(__file__), 'museq.vcf')
-VCF_SORTED1 = os.path.join(os.path.dirname(__file__), 'strelka.sort.vcf')
-VCF_SORTED2 = os.path.join(os.path.dirname(__file__), 'museq.sort.vcf')
+VCF_UNSORTED1 = os.path.join(os.path.dirname(__file__), 'strelka.unsorted1.vcf')
+VCF_UNSORTED2 = os.path.join(os.path.dirname(__file__), 'strelka.unsorted2.vcf')
+
+
+@pytest.fixture
+def setup_vcf_files():
+    vcf_file1 = pyvcf.Reader(open(VCF1))
+    vcf_file2 = pyvcf.Reader(open(VCF2))
+    return vcf_file1, vcf_file2
+
+
+@pytest.fixture
+def setup_unsorted_vcf_files():
+    vcf_file_unsorted1 = pyvcf.Reader(open(VCF_UNSORTED1))
+    vcf_file_unsorted2 = pyvcf.Reader(open(VCF_UNSORTED2))
+    return vcf_file_unsorted1, vcf_file_unsorted2
 
 
 def test_parse_args():
@@ -42,9 +56,9 @@ def test_parse_args():
     assert args_4.skip_sort_check is True
 
 
-def test_reset_vcf_files():
+def test_reset_vcf_files(setup_vcf_files):
     """Test reset_vcf_files function"""
-    vcf_file = pyvcf.Reader(open(VCF1))
+    vcf_file, _ = setup_vcf_files
     record = next(vcf_file)
     assert record.CHROM == "1" and record.POS == 2317235
     for i in range(5):
@@ -55,15 +69,32 @@ def test_reset_vcf_files():
     assert record.CHROM == "1" and record.POS == 2317235
 
 
-def test_check_sort():
-    """Test check_sort function"""
-    # Compare unsorted files
-    vcf_file1 = pyvcf.Reader(open(VCF1))
-    vcf_file2 = pyvcf.Reader(open(VCF2))
-    is_sorted = ensemble_caller.check_sort([vcf_file1, vcf_file2])
-    assert is_sorted is False
+def test_are_sorted(setup_vcf_files, setup_unsorted_vcf_files):
+    """Test are_sorted function"""
     # Compare sorted files
-    vcf_file_sorted1 = pyvcf.Reader(open(VCF_SORTED1))
-    vcf_file_sorted2 = pyvcf.Reader(open(VCF_SORTED2))
-    is_sorted = ensemble_caller.check_sort([vcf_file_sorted1, vcf_file_sorted2])
-    assert is_sorted is True
+    vcf_file1, vcf_file2 = setup_vcf_files
+    are_sorted = ensemble_caller.are_sorted([vcf_file1, vcf_file2])
+    assert are_sorted is True
+    # Compare sorted and unsorted files
+    vcf_file_unsorted, _ = setup_unsorted_vcf_files
+    is_sorted = ensemble_caller.are_sorted([vcf_file1, vcf_file_unsorted])
+    assert is_sorted is False
+
+
+def test_parse_order(setup_vcf_files, setup_unsorted_vcf_files):
+    """Test parse_order function"""
+    # Test 1: Obtain chromosome order from sorted file
+    vcf_file, _ = setup_vcf_files
+    test_1 = ["1", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
+              "2", "20", "21", "22", "3", "4", "5", "6", "7", "8", "9", "X"]
+    chrom_order = ensemble_caller.parse_order(vcf_file)
+    assert chrom_order == test_1
+    # Test 2: Obtain chromosome order from unsorted file (2 chrom blocks)
+    # Expectation: NotSortedException
+    vcf_file_unsorted1, vcf_file_unsorted2 = setup_unsorted_vcf_files
+    with pytest.raises(ensemble_caller.NotSortedException):
+        ensemble_caller.parse_order(vcf_file_unsorted1)
+    # Test 3: Obtain chromsome order from unsorted file (permuted pos)
+    # Expectation: NotSortedException
+    with pytest.raises(ensemble_caller.NotSortedException):
+        ensemble_caller.parse_order(vcf_file_unsorted2)

@@ -15,7 +15,10 @@ VCF1 = os.path.join(os.path.dirname(__file__), 'strelka.vcf')
 VCF2 = os.path.join(os.path.dirname(__file__), 'museq.vcf')
 VCF_UNSORTED1 = os.path.join(os.path.dirname(__file__), 'strelka.unsorted1.vcf')
 VCF_UNSORTED2 = os.path.join(os.path.dirname(__file__), 'strelka.unsorted2.vcf')
+VCF_UNSORTED3 = os.path.join(os.path.dirname(__file__), 'museq.unsorted.vcf')
 VCF_NOSOURCE = os.path.join(os.path.dirname(__file__), 'strelka.nosource.vcf')
+
+ensemble_caller.setup_logging()
 
 
 def open_vcf_files(*vcf_files):
@@ -33,7 +36,7 @@ def setup_vcf_files():
 
 @pytest.fixture
 def setup_unsorted_vcf_files():
-    return open_vcf_files(VCF_UNSORTED1, VCF_UNSORTED2)
+    return open_vcf_files(VCF_UNSORTED1, VCF_UNSORTED2, VCF_UNSORTED3)
 
 
 @pytest.fixture
@@ -98,11 +101,12 @@ def test_are_sorted(setup_vcf_files, setup_unsorted_vcf_files):
     are_sorted = ensemble_caller.are_sorted([vcf_file1, vcf_file2])
     assert are_sorted is True
     # Compare sorted and unsorted files
-    vcf_file_unsorted1, vcf_file_unsorted2 = setup_unsorted_vcf_files
+    vcf_file_unsorted1, vcf_file_unsorted2, vcf_file_unsorted3 = setup_unsorted_vcf_files
     with pytest.raises(ensemble_caller.NotSortedException):
         ensemble_caller.are_sorted([vcf_file1, vcf_file_unsorted1])
     with pytest.raises(ensemble_caller.NotSortedException):
         ensemble_caller.are_sorted([vcf_file1, vcf_file_unsorted2])
+    assert ensemble_caller.are_sorted([vcf_file1, vcf_file_unsorted3]) is False
 
 
 def test_parse_order(setup_vcf_files, setup_unsorted_vcf_files):
@@ -115,13 +119,17 @@ def test_parse_order(setup_vcf_files, setup_unsorted_vcf_files):
     assert chrom_order == expect
     # Test 2: Obtain chromosome order from unsorted file (2 chrom blocks)
     # Expectation: NotSortedException
-    vcf_file_unsorted1, vcf_file_unsorted2 = setup_unsorted_vcf_files
+    vcf_file_unsorted1, vcf_file_unsorted2, vcf_file_unsorted3 = setup_unsorted_vcf_files
     with pytest.raises(ensemble_caller.NotSortedException):
         ensemble_caller.parse_order(vcf_file_unsorted1)
     # Test 3: Obtain chromsome order from unsorted file (permuted pos)
     # Expectation: NotSortedException
     with pytest.raises(ensemble_caller.NotSortedException):
         ensemble_caller.parse_order(vcf_file_unsorted2)
+    # Test 4: Obtain chromsome order from weirdly sorted file, but still
+    # in contiguous blocks
+    # Expectation: No error
+    assert len(ensemble_caller.parse_order(vcf_file_unsorted3)) > 0
 
 
 def test_compare_orders():
@@ -137,8 +145,19 @@ def test_compare_orders():
     assert ensemble_caller.compare_orders(test_3) is True
     # Test 4: Compare unordered lists
     test_4 = [[1, 2, 3], [1, 3, 2]]
-    with pytest.raises(ensemble_caller.NotSortedException):
-        ensemble_caller.compare_orders(test_4)
+    assert ensemble_caller.compare_orders(test_4) is False
+    # Test 5: Compare unordered lists
+    test_5 = [[3, 2, 1], [1, 2]]
+    assert ensemble_caller.compare_orders(test_5) is False
+    # Test 6: Compare lexicographically sorted lists
+    test_6 = [["chr1", "chr10", "chr2"], ["chr1", "chr10", "chr3"]]
+    assert ensemble_caller.compare_orders(test_6) is True
+    # Test 7: Compare numerically sorted lists (of strings)
+    test_7 = [["chr1", "chr2", "chr10"], ["chr1", "chr3", "chr10"]]
+    assert ensemble_caller.compare_orders(test_7) is True
+    # Test 8: Compare inconsistently sorted lists
+    test_8 = [["chr1", "chr2", "chr10"], ["chr1", "chr10", "chr3"]]
+    assert ensemble_caller.compare_orders(test_8) is False
 
 
 def test_create_vcf_walktogether(setup_vcf_files):

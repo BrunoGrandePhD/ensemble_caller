@@ -22,11 +22,12 @@ Known Issues
 - None
 """
 
+import logging
+import sys
 import argparse
 import os
-
 from collections import OrderedDict
-from collections import deque
+import re
 import vcf as pyvcf
 import vcf.utils as pyvcf_utils
 
@@ -35,7 +36,7 @@ __desc__ = "Perform ensemble SNV calling based on multiple algorithms"
 
 
 def main():
-    """Perform ensemble SNV calling."""
+    """Main function."""
     # Parse command-line arguments
     args = parse_args()
     # Sort checking
@@ -45,23 +46,28 @@ def main():
     # Create walk_together generator
     vcf_wt = create_vcf_walktogether(*args.vcf_files)
     # Extract source (method) names
-    if args.names:
-        names = args.names
-    else:
-        names = extract_names(args.vcf_files)
+    names = args.names or extract_names(args.vcf_files)
     # Iterate over records
     for record in vcf_wt:
         print record
+
+
+def setup_logging():
+    """Setup basic config for logging."""
+    log_format = '%(asctime)s - %(levelname)s (%(module)s.%(funcName)s):  %(message)s'
+    date_format = '%Y/%m/%d %H:%M:%S'  # 2010/12/12 13:46:36
+    logging.basicConfig(format=log_format, level=logging.INFO, datefmt=date_format,
+                        stream=sys.stderr)
 
 
 def parse_args(args=None):
     """Parse command-line arguments, validates them and prepares them.
 
     Arguments:
-        args (list): List of command-line arguments (for testing)
+        args: List of command-line arguments (for testing)
 
     Returns:
-        Dictionary (dict) of argument-value pairs
+        Dictionary of argument-value pairs
     """
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description=__desc__)
@@ -88,7 +94,7 @@ def reset_vcf_files(vcf_files):
     """Reset the VCF objects to the beginning.
 
     Arguments:
-        vcf_files (list): List of `vcf.Reader` objects
+        vcf_files: List of `vcf.Reader` objects
     """
     for vcf in vcf_files:
         vcf._reader.seek(0)  # Reset the underlying file object to zero
@@ -101,10 +107,11 @@ class NotSortedException(Exception):
 
 
 def are_sorted(vcf_files):
-    """Check if the VCF files are sorted.
+    """Check if the VCF files are sorted. If not, issue a warning
+    to the user that data might be lost during VCF traversal.
 
     Arguments:
-        vcf_files (list): List of `vcf.Reader` objects
+        vcf_files: List of `vcf.Reader` objects
 
     Returns:
         A boolean indicating whether the following is true:
@@ -115,7 +122,13 @@ def are_sorted(vcf_files):
     chrom_lists = []
     for vcf in vcf_files:
         chrom_lists.append(parse_order(vcf))
-    return compare_orders(chrom_lists)
+    is_same_order = compare_orders(chrom_lists)
+    if not is_same_order:
+        logging.warn("The chromosomes across VCF files aren't all sorted "
+                     "lexicographically or numerically. Please ensure that "
+                     "they are in the same order. Use --skip_sort_check to "
+                     "suppress this warning.")
+    return is_same_order
 
 
 def parse_order(vcf_file):
@@ -125,7 +138,7 @@ def parse_order(vcf_file):
     same exception if there is more than one block for a given chromosome.
 
     Arguments:
-        vcf_file (`vcf.Reader`): A `vcf.Reader` object
+        vcf_file: A `vcf.Reader` object
 
     Returns:
         A list of chromosomes as ordered in the VCF file, with
@@ -157,35 +170,45 @@ def compare_orders(lists):
     missing values. Raises a NotSortedException if the elements
     aren't in the same order across the lists.
 
+    Checks whether all lists are sorted either lexicographically or
+    numerically in increasing order.
+
     Arguments:
-        lists (list): List of lists consisting of objects that
+        lists: List of lists consisting of objects that
             can be ordered
 
     Returns:
         A boolean indicated whether the lists follow the same order
             while allowing for missing values
     """
-    seen = set()
-    deques = [deque(l) for l in lists]
-    while sum(len(d) for d in deques) > 0:
-        heads = [d[0] for d in deques if len(d) > 0]
-        head = sorted(heads)[0]
-        if head in seen:
-            raise NotSortedException("Chromosomes aren't in the same order"
-                                     "across VCF files.")
-        else:
-            seen.add(head)
-            for d in deques:
-                if len(d) > 0 and d[0] == head:
-                    d.popleft()
-    return True
+
+    def check_lexico(l):
+        """Check if given list l is sorted lexicographically"""
+        return all(l[i] <= l[i+1] for i in range(len(l)-1))
+
+    def check_num(l):
+        """Check if given list l is sorted numerically"""
+        l_split = [re.findall(r"([A-Za-z._]+)(\d+)|([A-Za-z._]+)|(\d+)", str(s)) for s in l]
+        for i in range(len(l_split)):
+            for j in range(len(l_split[i])):
+                l_split[i][j] = [x for x in l_split[i][j] if x != ""]
+                for k in range(len(l_split[i][j])):
+                    try:
+                        l_split[i][j][k] = int(l_split[i][j][k])
+                    except ValueError:
+                        pass
+        return all(l_split[i] <= l_split[i+1] for i in range(len(l_split)-1))
+
+    is_sorted_lexico = all(check_lexico(l) for l in lists)
+    is_sorted_num = all(check_num(l) for l in lists)
+    return is_sorted_lexico or is_sorted_num
 
 
 def create_vcf_walktogether(vcf_files):
     """Create a VCF walk-together generator.
 
     Arguments:
-        vcf_files (list): A list of `vcf.Reader` objects
+        vcf_files: A list of `vcf.Reader` objects
 
     Returns:
         A `vcf.utils.walk_together` generator
@@ -197,9 +220,10 @@ def create_vcf_walktogether(vcf_files):
 
 def extract_names(vcf_files):
     """Extract source (method) names from the meta-information.
+    If the source name is absent, a name is given based on its order.
 
     Arguments:
-        vcf_files (list): List of `vcf.Reader` objects
+        vcf_files: List of `vcf.Reader` objects
 
     Returns:
         List of source (method) names

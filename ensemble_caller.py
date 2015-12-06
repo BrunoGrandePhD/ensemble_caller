@@ -23,6 +23,7 @@ Known Issues
 """
 
 import argparse
+from collections import OrderedDict
 import vcf as pyvcf
 
 __version__ = 0.1
@@ -69,8 +70,8 @@ def reset_vcf_files(vcf_files):
         vcf._parse_metainfo()  # Reparse the meta-information to skip ahead to the VCF records
 
 
-def check_sort(vcf_files):
-    """Reset the VCF objects to the beginning.
+def are_sorted(vcf_files):
+    """Check if the VCF files are sorted.
 
     Arguments:
         vcf_files (list): List of `vcf.Reader` objects
@@ -81,7 +82,47 @@ def check_sort(vcf_files):
             - The positions within each chromosome are numerically
               sorted
     """
-    pass
+    chrom_lists = []
+    for vcf in vcf_files:
+        chrom_lists.append(parse_order(vcf))
+
+
+def parse_order(vcf_file):
+    """Parse a VCF file to obtain a list of chromosomes as ordered
+    in the VCF file. Raises a NotSortedException when two consecutive
+    records from the same chromosome aren't in order. Also raises the
+    same exception if there is more than one block for a given chromosome.
+
+    Arguments:
+        vcf_file (`vcf.Reader`): A `vcf.Reader` object
+
+    Returns:
+        A list of chromosomes as ordered in the VCF file, with
+        consecutive duplicates removed.
+    """
+    chroms_seen = OrderedDict()
+    chrom_prev = None
+    pos_prev = None
+    for record in vcf_file:
+        chrom, pos = record.CHROM, record.POS
+        if chrom != chrom_prev:
+            if chrom in chroms_seen:
+                raise NotSortedException("More than one consecutive block "
+                                         "for chromosome {}".format(chrom))
+            else:
+                chroms_seen[chrom] = True
+                chrom_prev = chrom
+                pos_prev = 0
+        else:
+            if pos < pos_prev:
+                raise NotSortedException("Unsorted positions within chromosome "
+                                         "{} around position {}".format(chrom, pos))
+            pos_prev = pos
+    return chroms_seen.keys()
+
+
+class NotSortedException(Exception):
+    """Input VCF file isn't sorted"""
 
 
 if __name__ == '__main__':

@@ -23,9 +23,12 @@ Known Issues
 """
 
 import argparse
+import os
+
 from collections import OrderedDict
 from collections import deque
 import vcf as pyvcf
+import vcf.utils as pyvcf_utils
 
 __version__ = 0.1
 __desc__ = "Perform ensemble SNV calling based on multiple algorithms"
@@ -37,11 +40,22 @@ def main():
     args = parse_args()
     # Sort checking
     if not args.skip_sort_check:
-        pass
+        are_sorted(args.vcf_files)
+        reset_vcf_files(args.vcf_files)
+    # Create walk_together generator
+    vcf_wt = create_vcf_walktogether(*args.vcf_files)
+    # Extract source (method) names
+    if args.names:
+        names = args.names
+    else:
+        names = extract_names(args.vcf_files)
+    # Iterate over records
+    for record in vcf_wt:
+        print record
 
 
 def parse_args(args=None):
-    """Parse command-line arguments and prepare them.
+    """Parse command-line arguments, validates them and prepares them.
 
     Arguments:
         args (list): List of command-line arguments (for testing)
@@ -51,12 +65,23 @@ def parse_args(args=None):
     """
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description=__desc__)
-    parser.add_argument("vcf_files", nargs="+", type=argparse.FileType("r"), help="VCF files from multiple algorithms")
+    parser.add_argument("vcf_files", nargs="+", help="VCF files from multiple algorithms")
     parser.add_argument("--skip_sort_check", "-s", action="store_true", help="Skip sort check")
-    args_parsed = parser.parse_args(args)
+    parser.add_argument("--names", "-n", help="Method names (comma-separated) for VCF files "
+                        "(same order and length)")
+    args = parser.parse_args(args)
+    # Confirm that all VCF files exist
+    if not all(os.path.exists(vcf) for vcf in args.vcf_files):
+        raise IOError("One of the specified VCF files doesn't exist.")
     # Convert VCF files into pyvcf objects
-    args_parsed.vcf_files = [pyvcf.Reader(f) for f in args_parsed.vcf_files]
-    return args_parsed
+    args.vcf_files = [pyvcf.Reader(open(f)) for f in args.vcf_files]
+    # Split names on the comma
+    if args.names:
+        args.names = args.names.split(",")
+    # Check that names is the same length as the number of VCF files
+    if args.names:
+        assert len(args.names) == len(args.vcf_files), "Number of names and VCF files don't match."
+    return args
 
 
 def reset_vcf_files(vcf_files):
@@ -154,6 +179,43 @@ def compare_orders(lists):
                 if len(d) > 0 and d[0] == head:
                     d.popleft()
     return True
+
+
+def create_vcf_walktogether(vcf_files):
+    """Create a VCF walk-together generator.
+
+    Arguments:
+        vcf_files (list): A list of `vcf.Reader` objects
+
+    Returns:
+        A `vcf.utils.walk_together` generator
+    """
+    def vcf_record_sort_key(r):
+        return r.CHROM, r.POS, r.REF, r.ALT
+    return pyvcf_utils.walk_together(*vcf_files, vcf_record_sort_key=vcf_record_sort_key)
+
+
+def extract_names(vcf_files):
+    """Extract source (method) names from the meta-information.
+
+    Arguments:
+        vcf_files (list): List of `vcf.Reader` objects
+
+    Returns:
+        List of source (method) names
+    """
+    names = []
+    for i, vcf in enumerate(vcf_files, 1):
+        # Attempt to extract it from VCF file
+        try:
+            name = vcf.metadata["source"][0]
+        except KeyError:
+            name = ""
+        # If not in VCF file or empty, set it generically
+        if name == "":
+            name = "method_{}".format(str(i))
+        names.append(name)
+    return names
 
 
 if __name__ == '__main__':

@@ -15,20 +15,30 @@ VCF1 = os.path.join(os.path.dirname(__file__), 'strelka.vcf')
 VCF2 = os.path.join(os.path.dirname(__file__), 'museq.vcf')
 VCF_UNSORTED1 = os.path.join(os.path.dirname(__file__), 'strelka.unsorted1.vcf')
 VCF_UNSORTED2 = os.path.join(os.path.dirname(__file__), 'strelka.unsorted2.vcf')
+VCF_NOSOURCE = os.path.join(os.path.dirname(__file__), 'strelka.nosource.vcf')
+
+
+def open_vcf_files(*vcf_files):
+    vcf_files_opened = tuple([pyvcf.Reader(open(vcf)) for vcf in vcf_files])
+    if len(vcf_files_opened) == 1:
+        return vcf_files_opened[0]
+    else:
+        return vcf_files_opened
 
 
 @pytest.fixture
 def setup_vcf_files():
-    vcf_file1 = pyvcf.Reader(open(VCF1))
-    vcf_file2 = pyvcf.Reader(open(VCF2))
-    return vcf_file1, vcf_file2
+    return open_vcf_files(VCF1, VCF2)
 
 
 @pytest.fixture
 def setup_unsorted_vcf_files():
-    vcf_file_unsorted1 = pyvcf.Reader(open(VCF_UNSORTED1))
-    vcf_file_unsorted2 = pyvcf.Reader(open(VCF_UNSORTED2))
-    return vcf_file_unsorted1, vcf_file_unsorted2
+    return open_vcf_files(VCF_UNSORTED1, VCF_UNSORTED2)
+
+
+@pytest.fixture
+def setup_nosource_vcf_file():
+    return open_vcf_files(VCF_NOSOURCE)
 
 
 def test_parse_args():
@@ -54,6 +64,18 @@ def test_parse_args():
     test_4 = ["--skip_sort_check", VCF1]
     args_4 = ensemble_caller.parse_args(test_4)
     assert args_4.skip_sort_check is True
+    # Test 5: attempt with non-existent file
+    test_5 = [VCF1, VCF2, "oups.vcf"]
+    with pytest.raises(IOError):
+        ensemble_caller.parse_args(test_5)
+    # Test 6: Manually specify method names
+    test_6 = ["--names", "strelka,mutationseq", VCF1, VCF2]
+    args_6 = ensemble_caller.parse_args(test_6)
+    assert args_6.names == ["strelka", "mutationseq"]
+    # Test 7: Manually specify method names, but wrong number
+    test_7 = ["--names", "strelka,mutationseq,mutect", VCF1, VCF2]
+    with pytest.raises(AssertionError):
+        ensemble_caller.parse_args(test_7)
 
 
 def test_reset_vcf_files(setup_vcf_files):
@@ -87,10 +109,10 @@ def test_parse_order(setup_vcf_files, setup_unsorted_vcf_files):
     """Test parse_order function"""
     # Test 1: Obtain chromosome order from sorted file
     vcf_file, _ = setup_vcf_files
-    expect_1 = ["1", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
-                "2", "20", "21", "22", "3", "4", "5", "6", "7", "8", "9", "X"]
+    expect = ["1", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19",
+              "2", "20", "21", "22", "3", "4", "5", "6", "7", "8", "9", "X"]
     chrom_order = ensemble_caller.parse_order(vcf_file)
-    assert chrom_order == expect_1
+    assert chrom_order == expect
     # Test 2: Obtain chromosome order from unsorted file (2 chrom blocks)
     # Expectation: NotSortedException
     vcf_file_unsorted1, vcf_file_unsorted2 = setup_unsorted_vcf_files
@@ -117,3 +139,25 @@ def test_compare_orders():
     test_4 = [[1, 2, 3], [1, 3, 2]]
     with pytest.raises(ensemble_caller.NotSortedException):
         ensemble_caller.compare_orders(test_4)
+
+
+def test_create_vcf_walktogether(setup_vcf_files):
+    """Test create_vcf_walktogether function."""
+    vcf_files = list(setup_vcf_files)
+    vcf_wt = ensemble_caller.create_vcf_walktogether(vcf_files)
+    length = len([r for r in vcf_wt])
+    assert length == 410
+
+
+def test_extract_names(setup_vcf_files, setup_nosource_vcf_file):
+    """Test extract_names function."""
+    # Test 1: VCF files with source
+    vcf_files = list(setup_vcf_files)
+    expect_1 = ["strelka", "mutationSeq_4.3.6"]
+    names_1 = ensemble_caller.extract_names(vcf_files)
+    assert names_1 == expect_1
+    # Test 2: VCF file without source
+    vcf_file_nosource = setup_nosource_vcf_file
+    expect_2 = ["strelka", "method_2"]
+    names_2 = ensemble_caller.extract_names([vcf_files[0], vcf_file_nosource])
+    assert names_2 == expect_2

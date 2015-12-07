@@ -72,6 +72,7 @@ def parse_args(args=None):
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description=__desc__)
     parser.add_argument("vcf_files", nargs="+", help="VCF files from multiple algorithms")
+    parser.add_argument("--output_vcf", "-o", default=sys.stdout, help="Output VCF file")
     parser.add_argument("--skip_sort_check", "-s", action="store_true", help="Skip sort check")
     parser.add_argument("--names", "-n", help="Method names (comma-separated) for VCF files "
                         "(same order and length)")
@@ -81,6 +82,14 @@ def parse_args(args=None):
         raise IOError("One of the specified VCF files doesn't exist.")
     # Convert VCF files into pyvcf objects
     args.vcf_files = [pyvcf.Reader(open(f)) for f in args.vcf_files]
+    # If not stdout, create output directory if missing and open file
+    if args.output_vcf is not sys.stdout:
+        output_dir = os.path.dirname(args.output_vcf)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        args.output_vcf = open(args.output_vcf, "w")
+    # Create VCF file writer
+    args.output_vcf = pyvcf.Writer(args.output_vcf, template=args.vcf_files[0])
     # Split names on the comma
     if args.names:
         args.names = args.names.split(",")

@@ -7,16 +7,18 @@ This script contains all unit tests for ensemble_calling.py.
 """
 
 import os
+import sys
 import pytest
 import ensemble_caller
 import vcf as pyvcf
 
-VCF1 = os.path.join(os.path.dirname(__file__), 'strelka.vcf')
-VCF2 = os.path.join(os.path.dirname(__file__), 'museq.vcf')
-VCF_UNSORTED1 = os.path.join(os.path.dirname(__file__), 'strelka.unsorted1.vcf')
-VCF_UNSORTED2 = os.path.join(os.path.dirname(__file__), 'strelka.unsorted2.vcf')
-VCF_UNSORTED3 = os.path.join(os.path.dirname(__file__), 'museq.unsorted.vcf')
-VCF_NOSOURCE = os.path.join(os.path.dirname(__file__), 'strelka.nosource.vcf')
+TEST_DIR = os.path.dirname(__file__)
+VCF1 = os.path.join(TEST_DIR, 'strelka.vcf')
+VCF2 = os.path.join(TEST_DIR, 'museq.vcf')
+VCF_UNSORTED1 = os.path.join(TEST_DIR, 'strelka.unsorted1.vcf')
+VCF_UNSORTED2 = os.path.join(TEST_DIR, 'strelka.unsorted2.vcf')
+VCF_UNSORTED3 = os.path.join(TEST_DIR, 'museq.unsorted.vcf')
+VCF_NOSOURCE = os.path.join(TEST_DIR, 'strelka.nosource.vcf')
 
 ensemble_caller.setup_logging()
 
@@ -51,12 +53,14 @@ def test_parse_args():
     with pytest.raises(SystemExit):
         ensemble_caller.parse_args(test_1)
     # Test 2: one VCF file
+    # Expectation: all default values
     test_2 = [VCF1]
     args_2 = ensemble_caller.parse_args(test_2)
     assert isinstance(args_2.vcf_files, list)
     assert len(args_2.vcf_files) == 1
     assert all(isinstance(f, pyvcf.Reader) for f in args_2.vcf_files)
     assert args_2.skip_sort_check is False
+    assert isinstance(args_2.output_vcf, pyvcf.Writer)
     # Test 3: two VCF files
     test_3 = [VCF1, VCF2]
     args_3 = ensemble_caller.parse_args(test_3)
@@ -79,6 +83,20 @@ def test_parse_args():
     test_7 = ["--names", "strelka,mutationseq,mutect", VCF1, VCF2]
     with pytest.raises(AssertionError):
         ensemble_caller.parse_args(test_7)
+    # Test 8: specify output_vcf in existing directory
+    output_vcf_path1 = os.path.join(TEST_DIR, "output.vcf")
+    test_8 = ["--output_vcf", output_vcf_path1, VCF1, VCF2]
+    args_8 = ensemble_caller.parse_args(test_8)
+    assert isinstance(args_8.output_vcf, pyvcf.Writer)
+    os.remove(output_vcf_path1)
+    # Test 9: specify output_vcf in non-existing directory
+    # Expectation: non-existing directory is created
+    output_vcf_path2 = os.path.join(TEST_DIR, "output_dir", "output.vcf")
+    test_9 = ["--output_vcf", output_vcf_path2, VCF1, VCF2]
+    ensemble_caller.parse_args(test_9)
+    assert os.path.exists(os.path.join(TEST_DIR, "output_dir"))
+    os.remove(output_vcf_path2)
+    os.rmdir(os.path.dirname(output_vcf_path2))
 
 
 def test_reset_vcf_files(setup_vcf_files):
